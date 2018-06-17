@@ -1,3 +1,5 @@
+![chocologo](http://devopspecialist.co.uk/wp-content/uploads/2016/09/choco-logo.jpg)
+
 # Ansible Role for Chocolately.Server
 This is a simple Ansible role to configure an instance of Chocolately.Server.
 
