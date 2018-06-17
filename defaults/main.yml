@@ -1,0 +1,5 @@
+--- 
+
+# Defaults file for roles/ansichoco.
+
+chocolatey_api: ChocolateyAPIKey

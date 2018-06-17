@@ -1,0 +1,101 @@
+---
+
+# First, make sure IIS and ASP.NET are installed and present.
+
+- name: IIS/ASP.NET
+  win_feature:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - Web-Server
+    - Web-Asp-Net45
+    - Web-AppInit
+
+# Make sure xWebAdministration is installed so we can use DSC (Desired State Configuration).
+
+- name: xWebAdministration
+  win_psmodule:
+    name: xWebAdministration
+    state: present
+
+# Delete default web site; we don't need it.
+
+- name: Default Web Site
+  win_dsc:
+    resource_name: xWebsite
+    Name: Default Web Site
+    Ensure: Absent
+
+# Install Chocolatey.server using the win_chocolately module. The module installs Chocolately if not already present.
+
+- name: Chocolatey.server
+  win_chocolatey:
+    name: "chocolatey.server"
+    state: present
+
+# IIS needs an 'application pool' for Chocolately.server. Let's make it.
+
+- name: AppPool for Chocolatey.server
+  win_dsc:
+    resource_name: xWebAppPool
+    Name: ChocolateyServer
+    Ensure: present
+    enable32BitAppOnWin64: true
+    managedRuntimeVersion: v4.0
+    startMode: AlwaysRunning
+    autoStart: true
+    State: started
+
+# Give Chocolately.server the permissions it needs for a couple of folders.
+
+- name: Grant read permissions to c:\tools\chocolatey.server
+  win_acl:
+    user: "{{ item }}"
+    path: c:\tools\chocolatey.server
+    rights: Read
+    state: present
+    type: allow
+    inherit: ContainerInherit, ObjectInherit
+    progagation: InheritOnly
+  with_items:
+    - IIS_IUSRS
+    - IUSR
+    - IIS APPPOOL\ChocolateyServer
+
+- name: Grant IIS APPPOOL\ modify permissions to c:\tools\chocolatey.server\App_Data
+  win_acl:
+    user: "{{ item }}"
+    path: c:\tools\chocolatey.server
+    rights: Modify
+    state: present
+    type: allow
+    inherit: ContainerInherit, ObjectInherit
+    progagation: InheritOnly
+  with_items:
+    - IIS_IUSRS
+    - IIS APPPOOL\ChocolateyServer
+
+# Now that the default website is gone, make one for Chocolately.
+
+- name: Add Website for Chocolatey.server
+  win_dsc:
+    resource_name: xWebsite
+    Name: ChocolateyServer
+    Ensure: present
+    BindingInfo:
+      Protocol: http
+      Port: 80
+    ApplicationPool: ChocolateyServer
+    PreloadEnabled: true
+    ServiceAutoStartEnabled: true
+    AuthenticationInfo:
+      Anonymous: true
+    PhysicalPath: c:\tools\chocolatey.server
+
+# Set your API key for pushing packages. Variable is configured in role setup for your playbook.
+
+- name: Set API-Key
+  win_lineinfile:
+    path: c:\tools\chocolatey.server\web.config
+    regexp: 'add key="apiKey"'
+    line: '<add key="apiKey" value="{{ chocolatey_api }}" />'
